@@ -36,11 +36,31 @@ export abstract class Observable {
 
 	/**
 	 * remove observer/s from observable
-	 * 
+	 *
 	 * @param observable observable to remove observer/s from
 	 * @param observers 0 to many observers to remove; if none supplied, ALL observers will be removed
 	 */
 	static unobserve(observable: Observable, ...observers: Observer[]): void;
+
+	/**
+	 * add validator to handle the observable's changes before they are applied
+	 * - validators run BEFORE mutations are applied
+	 * - BEST PRACTICE: return false to reject mutation cleanly
+	 * - ALSO WORKS: throw error to reject (more expensive/brute force, error propagates to caller)
+	 *
+	 * @param observable observable to set validator on
+	 * @param validator validator function / logic
+	 * @param options validation options (same as observer options)
+	 */
+	static validate(observable: Observable, validator: Validator, options?: ValidatorOptions): void;
+
+	/**
+	 * remove validator/s from observable
+	 *
+	 * @param observable observable to remove validator/s from
+	 * @param validators 0 to many validators to remove; if none supplied, ALL validators will be removed
+	 */
+	static unvalidate(observable: Observable, ...validators: Validator[]): void;
 }
 
 export interface ObservableOptions {
@@ -52,6 +72,16 @@ export interface Observer {
 }
 
 export interface ObserverOptions {
+	path?: string,
+	pathsOf?: string,
+	pathsFrom?: string
+}
+
+export interface Validator {
+	(change: Change): boolean | void;
+}
+
+export interface ValidatorOptions {
 	path?: string,
 	pathsOf?: string,
 	pathsFrom?: string

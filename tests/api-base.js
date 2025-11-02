@@ -8,7 +8,9 @@ test('ensure Observable object has defined APIs', () => {
 	assert.equal(typeof Observable.isObservable, 'function');
 	assert.equal(typeof Observable.observe, 'function');
 	assert.equal(typeof Observable.unobserve, 'function');
-	assert.equal(Object.keys(Observable).length, 4);
+	assert.equal(typeof Observable.validate, 'function');
+	assert.equal(typeof Observable.unvalidate, 'function');
+	assert.equal(Object.keys(Observable).length, 6);
 });
 
 test('ensure Observable object is frozen', () => {

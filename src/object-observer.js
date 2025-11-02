@@ -164,6 +164,41 @@ const
 			}
 		} while (currentObservable);
 	},
+	callValidators = (oMeta, change) => {
+		let currentObservable = oMeta;
+		let validators, target, options, relevantChanges, i;
+		do {
+			validators = currentObservable.validators;
+			i = validators.length;
+			while (i--) {
+				[target, options] = validators[i];
+				relevantChanges = filterChanges(options, [change]);
+
+				if (relevantChanges.length) {
+					const result = target(change);
+					if (result === false) {
+						return false;
+					}
+				}
+			}
+
+			//	check validators in parent context if exists
+			const parent = currentObservable.parent;
+			if (parent) {
+				change = new Change(
+					change.type,
+					[currentObservable.ownKey, ...change.path],
+					change.value,
+					change.oldValue,
+					change.object
+				);
+				currentObservable = parent;
+			} else {
+				currentObservable = null;
+			}
+		} while (currentObservable);
+		return true;
+	},
 	getObservedOf = (item, key, parent, visited) => {
 		if (visited !== undefined && visited.has(item)) {
 			return null;
@@ -183,6 +218,12 @@ const
 		const oMeta = this[oMetaKey],
 			target = oMeta.target,
 			poppedIndex = target.length - 1;
+
+		//	validate before performing the operation
+		const change = new Change(DELETE, [poppedIndex], undefined, target[poppedIndex], this);
+		if (!callValidators(oMeta, change)) {
+			return undefined;
+		}
 
 		let popResult = target.pop();
 		if (popResult && typeof popResult === 'object') {
@@ -205,9 +246,16 @@ const
 			pushContent = new Array(l),
 			initialLength = target.length;
 
+		//	validate all changes before performing the operation
 		for (let i = 0; i < l; i++) {
-			pushContent[i] = getObservedOf(arguments[i], initialLength + i, oMeta);
+			const newValue = getObservedOf(arguments[i], initialLength + i, oMeta);
+			const change = new Change(INSERT, [initialLength + i], newValue, undefined, this);
+			if (!callValidators(oMeta, change)) {
+				return initialLength;
+			}
+			pushContent[i] = newValue;
 		}
+
 		const pushResult = Reflect.apply(target.push, target, pushContent);
 
 		const changes = [];
@@ -223,6 +271,12 @@ const
 			oMeta = this[oMetaKey],
 			target = oMeta.target;
 		let shiftResult, i, l, item, tmpObserved;
+
+		//	validate before performing the operation
+		const change = new Change(DELETE, [0], undefined, target[0], this);
+		if (!callValidators(oMeta, change)) {
+			return undefined;
+		}
 
 		shiftResult = target.shift();
 		if (shiftResult && typeof shiftResult === 'object') {
@@ -253,11 +307,19 @@ const
 			oMeta = this[oMetaKey],
 			target = oMeta.target,
 			al = arguments.length,
-			unshiftContent = new Array(al);
+			unshiftContent = new Array(al),
+			initialLength = target.length;
 
+		//	validate all changes before performing the operation
 		for (let i = 0; i < al; i++) {
-			unshiftContent[i] = getObservedOf(arguments[i], i, oMeta);
+			const newValue = getObservedOf(arguments[i], i, oMeta);
+			const change = new Change(INSERT, [i], newValue, undefined, this);
+			if (!callValidators(oMeta, change)) {
+				return initialLength;
+			}
+			unshiftContent[i] = newValue;
 		}
+
 		const unshiftResult = Reflect.apply(target.unshift, target, unshiftContent);
 
 		for (let i = 0, l = target.length, item; i < l; i++) {
@@ -286,6 +348,12 @@ const
 			target = oMeta.target;
 		let i, l, item;
 
+		//	validate before performing the operation
+		const change = new Change(REVERSE, [], undefined, undefined, this);
+		if (!callValidators(oMeta, change)) {
+			return this;
+		}
+
 		target.reverse();
 		for (i = 0, l = target.length; i < l; i++) {
 			item = target[i];
@@ -307,6 +375,12 @@ const
 			oMeta = this[oMetaKey],
 			target = oMeta.target;
 		let i, l, item;
+
+		//	validate before performing the operation
+		const change = new Change(SHUFFLE, [], undefined, undefined, this);
+		if (!callValidators(oMeta, change)) {
+			return this;
+		}
 
 		target.sort(comparator);
 		for (i = 0, l = target.length; i < l; i++) {
@@ -335,6 +409,16 @@ const
 		end = end === undefined ? tarLen : (end < 0 ? Math.max(tarLen + end, 0) : Math.min(end, tarLen));
 
 		if (start < tarLen && end > start) {
+			//	validate all changes before performing the operation
+			for (let i = start; i < end; i++) {
+				const newValue = getObservedOf(filVal, i, oMeta);
+				const changeType = i in prev ? UPDATE : INSERT;
+				const change = new Change(changeType, [i], newValue, prev[i], this);
+				if (!callValidators(oMeta, change)) {
+					return this;
+				}
+			}
+
 			target.fill(filVal, start, end);
 
 			let tmpObserved;
@@ -372,9 +456,22 @@ const
 		const len = Math.min(end - start, tarLen - dest);
 
 		if (dest < tarLen && dest !== start && len > 0) {
-			const
-				prev = target.slice(0),
-				changes = [];
+			const prev = target.slice(0);
+
+			//	validate all changes before performing the operation
+			for (let i = dest, j = start; i < dest + len; i++, j++) {
+				const newValue = getObservedOf(target[j], i, oMeta);
+				const oldValue = prev[i];
+				if (typeof newValue !== 'object' && newValue === oldValue) {
+					continue;
+				}
+				const change = new Change(UPDATE, [i], newValue, oldValue, this);
+				if (!callValidators(oMeta, change)) {
+					return this;
+				}
+			}
+
+			const changes = [];
 
 			target.copyWithin(dest, start, end);
 
@@ -414,18 +511,40 @@ const
 			spliceContent = new Array(splLen),
 			tarLen = target.length;
 
+		//	calculate pointers first to know what changes we'll make
+		const
+			startIndex = splLen === 0 ? 0 : (arguments[0] < 0 ? tarLen + arguments[0] : arguments[0]),
+			removed = splLen < 2 ? tarLen - startIndex : arguments[1],
+			inserted = Math.max(splLen - 2, 0);
+
+		//	validate all changes before performing the operation
+		const validationChanges = [];
+		for (let index = 0; index < removed; index++) {
+			if (index < inserted) {
+				const newValue = getObservedOf(arguments[index + 2], startIndex + index, oMeta);
+				validationChanges.push(new Change(UPDATE, [startIndex + index], newValue, target[startIndex + index], this));
+			} else {
+				validationChanges.push(new Change(DELETE, [startIndex + index], undefined, target[startIndex + index], this));
+			}
+		}
+		for (let index = removed; index < inserted; index++) {
+			const newValue = getObservedOf(arguments[index + 2], startIndex + index, oMeta);
+			validationChanges.push(new Change(INSERT, [startIndex + index], newValue, undefined, this));
+		}
+
+		for (const change of validationChanges) {
+			if (!callValidators(oMeta, change)) {
+				return [];
+			}
+		}
+
 		//	observify the newcomers
 		for (let i = 0; i < splLen; i++) {
 			spliceContent[i] = getObservedOf(arguments[i], i, oMeta);
 		}
 
-		//	calculate pointers
-		const
-			startIndex = splLen === 0 ? 0 : (spliceContent[0] < 0 ? tarLen + spliceContent[0] : spliceContent[0]),
-			removed = splLen < 2 ? tarLen - startIndex : spliceContent[1],
-			inserted = Math.max(splLen - 2, 0),
-			spliceResult = Reflect.apply(target.splice, target, spliceContent),
-			newTarLen = target.length;
+		const spliceResult = Reflect.apply(target.splice, target, spliceContent);
+		const newTarLen = target.length;
 
 		//	reindex the paths
 		let tmpObserved;
@@ -474,6 +593,14 @@ const
 			souLen = source.length,
 			prev = target.slice(0);
 		offset = offset || 0;
+
+		//	validate all changes before performing the operation
+		for (let i = offset; i < (souLen + offset); i++) {
+			const change = new Change(UPDATE, [i], source[i - offset], prev[i], this);
+			if (!callValidators(oMeta, change)) {
+				return;
+			}
+		}
 
 		target.set(source, offset);
 		const changes = new Array(souLen);
@@ -526,6 +653,7 @@ class OMetaBase {
 		const targetClone = cloningFunction(target, this, visited);
 		visited.delete(target);
 		this.observers = [];
+		this.validators = [];
 		this.revocable = Proxy.revocable(targetClone, this);
 		this.proxy = this.revocable.proxy;
 		this.target = targetClone;
@@ -560,6 +688,14 @@ class OMetaBase {
 
 		if (value !== oldValue) {
 			const newValue = getObservedOf(value, key, this);
+
+			//	validate the change before applying
+			const changeType = oldValue === undefined ? INSERT : UPDATE;
+			const change = new Change(changeType, [key], newValue, oldValue, this.proxy);
+			if (!callValidators(this, change)) {
+				return false;
+			}
+
 			target[key] = newValue;
 
 			if (oldValue && typeof oldValue === 'object') {
@@ -569,9 +705,7 @@ class OMetaBase {
 				}
 			}
 
-			const changes = oldValue === undefined
-				? [new Change(INSERT, [key], newValue, undefined, this.proxy)]
-				: [new Change(UPDATE, [key], newValue, oldValue, this.proxy)];
+			const changes = [new Change(changeType, [key], newValue, oldValue, this.proxy)];
 			callObservers(this, changes);
 		}
 
@@ -580,6 +714,12 @@ class OMetaBase {
 
 	deleteProperty(target, key) {
 		let oldValue = target[key];
+
+		//	validate the change before applying
+		const change = new Change(DELETE, [key], undefined, oldValue, this.proxy);
+		if (!callValidators(this, change)) {
+			return false;
+		}
 
 		delete target[key];
 
@@ -677,6 +817,44 @@ const Observable = Object.freeze({
 			let i = observers.indexOf(existingObs[--el][0]);
 			if (i >= 0) {
 				existingObs.splice(el, 1);
+			}
+		}
+	},
+	validate: (observable, validator, options) => {
+		if (!Observable.isObservable(observable)) {
+			throw new Error(`invalid observable parameter`);
+		}
+		if (typeof validator !== 'function') {
+			throw new Error(`validator MUST be a function, got '${validator}'`);
+		}
+
+		const validators = observable[oMetaKey].validators;
+		if (!validators.some(v => v[0] === validator)) {
+			validators.push([validator, processObserveOptions(options)]);
+		} else {
+			console.warn('validator may be bound to an observable only once; will NOT rebind');
+		}
+	},
+	unvalidate: (observable, ...validators) => {
+		if (!Observable.isObservable(observable)) {
+			throw new Error(`invalid observable parameter`);
+		}
+
+		const existingVals = observable[oMetaKey].validators;
+		let el = existingVals.length;
+		if (!el) {
+			return;
+		}
+
+		if (!validators.length) {
+			existingVals.splice(0);
+			return;
+		}
+
+		while (el) {
+			let i = validators.indexOf(existingVals[--el][0]);
+			if (i >= 0) {
+				existingVals.splice(el, 1);
 			}
 		}
 	}
