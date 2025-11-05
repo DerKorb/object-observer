@@ -20,7 +20,9 @@ test('validator - basic object property set - reject', () => {
 	Observable.validate(observable, validator);
 
 	// This should be rejected
-	observable.name = 'rejected';
+	assert.throws(() => {
+		observable.name = 'rejected';
+	}, TypeError);
 	assert.equal(observable.name, 'initial');
 
 	// This should be allowed
@@ -66,7 +68,9 @@ test('validator - property insert', () => {
 	Observable.validate(observable, validator);
 
 	// This should be rejected
-	observable.forbidden = 'value';
+	assert.throws(() => {
+		observable.forbidden = 'value';
+	}, TypeError);
 	assert.isFalse('forbidden' in observable);
 
 	// This should be allowed
@@ -90,7 +94,9 @@ test('validator - property delete', () => {
 	Observable.validate(observable, validator);
 
 	// This should be rejected
-	delete observable.protected;
+	assert.throws(() => {
+		delete observable.protected;
+	}, TypeError);
 	assert.equal(observable.protected, 'value');
 
 	// This should be allowed
@@ -136,7 +142,7 @@ test('validator - array pop - reject', () => {
 	// This should be rejected
 	const result = observable.pop();
 	assert.equal(observable.length, 3);
-	assert.isUndefined(result);
+	assert.equal(result, undefined);
 });
 
 test('validator - array shift - reject', () => {
@@ -150,7 +156,7 @@ test('validator - array shift - reject', () => {
 	// This should be rejected
 	const result = observable.shift();
 	assert.equal(observable.length, 3);
-	assert.isUndefined(result);
+	assert.equal(result, undefined);
 });
 
 test('validator - array unshift - reject', () => {
@@ -264,11 +270,15 @@ test('validator - multiple validators', () => {
 	Observable.validate(observable, validator2);
 
 	// Too small - rejected by validator1
-	observable.value = -5;
+	assert.throws(() => {
+		observable.value = -5;
+	}, TypeError);
 	assert.equal(observable.value, 10);
 
 	// Too large - rejected by validator2
-	observable.value = 150;
+	assert.throws(() => {
+		observable.value = 150;
+	}, TypeError);
 	assert.equal(observable.value, 10);
 
 	// Just right - allowed by both
@@ -285,7 +295,9 @@ test('validator - unvalidate single', () => {
 	Observable.validate(observable, validator);
 
 	// Should be rejected
-	observable.value = 20;
+	assert.throws(() => {
+		observable.value = 20;
+	}, TypeError);
 	assert.equal(observable.value, 10);
 
 	// Remove validator
@@ -307,7 +319,9 @@ test('validator - unvalidate all', () => {
 	Observable.validate(observable, validator2);
 
 	// Should be rejected
-	observable.value = 20;
+	assert.throws(() => {
+		observable.value = 20;
+	}, TypeError);
 	assert.equal(observable.value, 10);
 
 	// Remove all validators
@@ -327,7 +341,9 @@ test('validator - with path option', () => {
 	Observable.validate(observable, validator, { path: 'user.name' });
 
 	// This should be rejected (matches path)
-	observable.user.name = 'Jane';
+	assert.throws(() => {
+		observable.user.name = 'Jane';
+	}, TypeError);
 	assert.equal(observable.user.name, 'John');
 
 	// This should be allowed (different path)
@@ -344,7 +360,9 @@ test('validator - with pathsOf option', () => {
 	Observable.validate(observable, validator, { pathsOf: 'user' });
 
 	// This should be rejected (direct property of user)
-	observable.user.name = 'Jane';
+	assert.throws(() => {
+		observable.user.name = 'Jane';
+	}, TypeError);
 	assert.equal(observable.user.name, 'John');
 
 	// This should be allowed (nested deeper)
@@ -361,11 +379,15 @@ test('validator - with pathsFrom option', () => {
 	Observable.validate(observable, validator, { pathsFrom: 'user' });
 
 	// This should be rejected (under user path)
-	observable.user.name = 'Jane';
+	assert.throws(() => {
+		observable.user.name = 'Jane';
+	}, TypeError);
 	assert.equal(observable.user.name, 'John');
 
 	// This should also be rejected (nested under user)
-	observable.user.address.city = 'LA';
+	assert.throws(() => {
+		observable.user.address.city = 'LA';
+	}, TypeError);
 	assert.equal(observable.user.address.city, 'NYC');
 });
 
@@ -408,7 +430,9 @@ test('validator - observers still fire after validation passes', () => {
 	});
 
 	// This should be rejected - no observer notification
-	observable.value = -5;
+	assert.throws(() => {
+		observable.value = -5;
+	}, TypeError);
 	assert.equal(observable.value, 10);
 	assert.equal(observedChanges.length, 0);
 
@@ -439,7 +463,9 @@ test('validator - duplicate registration', () => {
 	Observable.validate(observable, validator);
 
 	// Should only be one validator (if there were two, the second check would also fail)
-	observable.value = 20;
+	assert.throws(() => {
+		observable.value = 20;
+	}, TypeError);
 	assert.equal(observable.value, 10);
 
 	// Remove validator once
