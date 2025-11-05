@@ -45,8 +45,10 @@ export abstract class Observable {
 	/**
 	 * add validator to handle the observable's changes before they are applied
 	 * - validators run BEFORE mutations are applied
-	 * - BEST PRACTICE: return false to reject mutation cleanly
-	 * - ALSO WORKS: throw error to reject (more expensive/brute force, error propagates to caller)
+	 * - a validator rejects a change by returning `false` or throwing an error
+	 * - returning `false` on a property set will throw a `TypeError` in strict mode (and fail silently otherwise)
+	 * - returning `false` on an array mutation will reject the change and return a meaningful value (e.g. previous length)
+	 * - throwing an error will always reject the change and propagate to the caller
 	 *
 	 * @param observable observable to set validator on
 	 * @param validator validator function / logic
