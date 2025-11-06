@@ -415,25 +415,23 @@ const
 
 		if (start < tarLen && end > start) {
 
-			//	validate all changes before performing the operation
-			for (let i = start; i < end; i++) {
-				const oldValue = prev[i];
-				if (typeof filVal !== 'object' && filVal === oldValue) {
-					continue;
-				}
-				const changeType = i in prev ? UPDATE : INSERT;
-				changes.push(new Change(changeType, [i], filVal, oldValue, this));
-			}
-			
+			const newValues = [];
 			let tmpObserved;
 			for (let i = start; i < end; i++) {
 				const oldValue = prev[i];
+				const newValue = getObservedOf(filVal, i, oMeta);
+				newValues.push(newValue);
+				if (typeof newValue !== 'object' && newValue === oldValue) {
+					continue;
+				}
 				if (oldValue && typeof oldValue === 'object') {
 					tmpObserved = oldValue[oMetaKey];
 					if (tmpObserved) {
 						tmpObserved.detach();
 					}
 				}
+				const changeType = i in prev ? UPDATE : INSERT;
+				changes.push(new Change(changeType, [i], newValue, oldValue, this));
 			}
 			
 			if (!callValidators(oMeta, changes)) {
@@ -441,8 +439,8 @@ const
 			}
 
 			target.fill(filVal, start, end);
-			for (let i = start; i < end; i++) {
-				target[i] = getObservedOf(target[i], i, oMeta);
+			for (let i = start, j = 0; i < end; i++, j++) {
+				target[i] = newValues[j];
 			}
 
 			callObservers(oMeta, changes);
