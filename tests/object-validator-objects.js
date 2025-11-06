@@ -6,7 +6,8 @@ test('validator - basic object property set - reject', () => {
 	const obj = { name: 'initial' };
 	const observable = Observable.from(obj);
 
-	const validator = change => {
+	const validator = changes => {
+		const change = changes[0];
 		if (change.value === 'rejected') {
 			return false;
 		}
@@ -29,7 +30,8 @@ test('validator - basic object property set - throw (brute force)', () => {
 	const obj = { name: 'initial' };
 	const observable = Observable.from(obj);
 
-	const validator = change => {
+	const validator = changes => {
+		const change = changes[0];
 		if (change.value === 'bad') {
 			throw new Error('Invalid value');
 		}
@@ -52,11 +54,13 @@ test('validator - property insert', () => {
 	const obj = {};
 	const observable = Observable.from(obj);
 
-	const changes = [];
-	const validator = change => {
-		changes.push(change);
-		if (change.type === 'insert' && change.path[0] === 'forbidden') {
-			return false;
+	const validatorChanges = [];
+	const validator = changes => {
+		validatorChanges.push(...changes);
+		for (const change of changes) {
+			if (change.type === 'insert' && change.path[0] === 'forbidden') {
+				return false;
+			}
 		}
 	};
 
@@ -71,16 +75,17 @@ test('validator - property insert', () => {
 	// This should be allowed
 	observable.allowed = 'value';
 	assert.equal(observable.allowed, 'value');
-	assert.equal(changes.length, 2);
-	assert.equal(changes[0].type, 'insert');
-	assert.equal(changes[1].type, 'insert');
+	assert.equal(validatorChanges.length, 2);
+	assert.equal(validatorChanges[0].type, 'insert');
+	assert.equal(validatorChanges[1].type, 'insert');
 });
 
 test('validator - property delete', () => {
 	const obj = { protected: 'value', deletable: 'value' };
 	const observable = Observable.from(obj);
 
-	const validator = change => {
+	const validator = changes => {
+		const change = changes[0];
 		if (change.type === 'delete' && change.path[0] === 'protected') {
 			return false;
 		}
@@ -101,7 +106,8 @@ test('validator - property delete', () => {
 
 test('validator - Object.assign with multiple properties - reject', () => {
 	const observable = Observable.from({ a: 1 });
-	const validator = change => {
+	const validator = changes => {
+		const change = changes[0];
 		if (change.path[0] === 'b') {
 			return false;
 		}
@@ -123,7 +129,8 @@ test('validator - property delete - return value', () => {
 		data = { a: 1 },
 		observable = Observable.from(data);
 
-	Observable.validate(observable, change => {
+	Observable.validate(observable, changes => {
+		const change = changes[0];
 		if (change.type === 'delete' && change.path[0] === 'a') {
 			return false;
 		}
@@ -140,7 +147,8 @@ test('validator - property delete - throws', () => {
 		data = { a: 1 },
 		observable = Observable.from(data);
 
-	Observable.validate(observable, change => {
+	Observable.validate(observable, changes => {
+		const change = changes[0];
 		if (change.type === 'delete' && change.path[0] === 'a') {
 			return false;
 		}

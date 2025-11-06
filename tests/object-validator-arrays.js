@@ -6,8 +6,8 @@ test('validator - array push - reject', () => {
 	const arr = [1, 2, 3];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.value === 99) {
+	const validator = changes => {
+		if (changes[0].value === 99) {
 			return false;
 		}
 	};
@@ -29,8 +29,8 @@ test('validator - array pop - reject', () => {
 	const arr = [1, 2, 3];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.type === 'delete' && change.path[0] === 2) {
+	const validator = changes => {
+		if (changes[0].type === 'delete' && changes[0].path[0] === 2) {
 			return false;
 		}
 	};
@@ -47,7 +47,13 @@ test('validator - array shift - reject', () => {
 	const arr = [1, 2, 3];
 	const observable = Observable.from(arr);
 
-	const validator = () => false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.type === 'delete' && change.path[0] === 0) {
+				return false;
+			}
+		}
+	};
 
 	Observable.validate(observable, validator);
 
@@ -61,9 +67,11 @@ test('validator - array unshift - reject', () => {
 	const arr = [1, 2, 3];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.value === 0) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.value === 0) {
+				return false;
+			}
 		}
 	};
 
@@ -79,7 +87,13 @@ test('validator - array reverse', () => {
 	const arr = [1, 2, 3];
 	const observable = Observable.from(arr);
 
-	const validator = () => false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.type === 'reverse') {
+				return false;
+			}
+		}
+	};
 
 	Observable.validate(observable, validator);
 
@@ -94,7 +108,13 @@ test('validator - array sort', () => {
 	const arr = [3, 1, 2];
 	const observable = Observable.from(arr);
 
-	const validator = () => false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.type === 'shuffle') {
+				return false;
+			}
+		}
+	};
 
 	Observable.validate(observable, validator);
 
@@ -109,9 +129,11 @@ test('validator - array fill', () => {
 	const arr = [1, 2, 3];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.value === 0) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.value === 0) {
+				return false;
+			}
 		}
 	};
 
@@ -134,9 +156,11 @@ test('validator - array splice - reject', () => {
 	const arr = [1, 2, 3, 4];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.type === 'delete') {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.type === 'delete') {
+				return false;
+			}
 		}
 	};
 
@@ -152,9 +176,11 @@ test('validator - array copyWithin - reject', () => {
 	const arr = [1, 2, 3, 4, 5];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.value === 4) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.value === 4) {
+				return false;
+			}
 		}
 	};
 
@@ -173,9 +199,11 @@ test('validator - array splice insert - reject', () => {
 	const arr = [1, 2, 3, 4];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.type === 'insert' && change.value === 99) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.type === 'insert' && change.value === 99) {
+				return false;
+			}
 		}
 	};
 
@@ -192,9 +220,11 @@ test('validator - array splice update - reject', () => {
 	const arr = [1, 2, 3, 4];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.type === 'update' && change.value === 99) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.type === 'update' && change.value === 99) {
+				return false;
+			}
 		}
 	};
 
@@ -211,9 +241,11 @@ test('validator - array push multiple values - reject one', () => {
 	const arr = [1, 2, 3];
 	const observable = Observable.from(arr);
 
-	const validator = change => {
-		if (change.value === 99) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.value === 99) {
+				return false;
+			}
 		}
 	};
 
@@ -229,9 +261,11 @@ test('validator - array fill on sparse array - reject', () => {
 	const arr = new Array(3);
 	arr[0] = 'a';
 	const observable = Observable.from(arr);
-	const validator = change => {
-		if (change.type === 'insert' || change.type === 'update') {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.type === 'insert' || change.type === 'update') {
+				return false;
+			}
 		}
 	};
 	Observable.validate(observable, validator);

@@ -164,7 +164,10 @@ const
 			}
 		} while (currentObservable);
 	},
-	callValidators = (oMeta, change) => {
+	callValidators = (oMeta, changes) => {
+		if (!changes.length) {
+			return true;
+		}
 		let currentObservable = oMeta;
 		let validators, target, options, relevantChanges, i;
 		do {
@@ -172,10 +175,10 @@ const
 			i = validators.length;
 			while (i--) {
 				[target, options] = validators[i];
-				relevantChanges = filterChanges(options, [change]);
+				relevantChanges = filterChanges(options, changes);
 
 				if (relevantChanges.length) {
-					const result = target(change);
+					const result = target(relevantChanges);
 					if (result === false) {
 						return false;
 					}
@@ -185,13 +188,18 @@ const
 			//	check validators in parent context if exists
 			const parent = currentObservable.parent;
 			if (parent) {
-				change = new Change(
-					change.type,
-					[currentObservable.ownKey, ...change.path],
-					change.value,
-					change.oldValue,
-					change.object
-				);
+				const parentChanges = new Array(changes.length);
+				for (let j = 0; j < changes.length; j++) {
+					const change = changes[j];
+					parentChanges[j] = new Change(
+						change.type,
+						[currentObservable.ownKey, ...change.path],
+						change.value,
+						change.oldValue,
+						change.object
+					);
+				}
+				changes = parentChanges;
 				currentObservable = parent;
 			} else {
 				currentObservable = null;
@@ -219,13 +227,7 @@ const
 			target = oMeta.target,
 			poppedIndex = target.length - 1;
 
-		//	validate before performing the operation
-		const change = new Change(DELETE, [poppedIndex], undefined, target[poppedIndex], this);
-		if (!callValidators(oMeta, change)) {
-			return undefined;
-		}
-
-		let popResult = target.pop();
+		let popResult = target[poppedIndex];
 		if (popResult && typeof popResult === 'object') {
 			const tmpObserved = popResult[oMetaKey];
 			if (tmpObserved) {
@@ -233,7 +235,14 @@ const
 			}
 		}
 
+		//	validate before performing the operation
 		const changes = [new Change(DELETE, [poppedIndex], undefined, popResult, this)];
+		if (!callValidators(oMeta, changes)) {
+			return undefined;
+		}
+
+		popResult = target.pop();
+
 		callObservers(oMeta, changes);
 
 		return popResult;
@@ -247,21 +256,19 @@ const
 			initialLength = target.length;
 
 		//	validate all changes before performing the operation
+		const changes = new Array(l);
 		for (let i = 0; i < l; i++) {
 			const newValue = getObservedOf(arguments[i], initialLength + i, oMeta);
-			const change = new Change(INSERT, [initialLength + i], newValue, undefined, this);
-			if (!callValidators(oMeta, change)) {
-				return initialLength;
-			}
+			changes[i] = new Change(INSERT, [initialLength + i], newValue, undefined, this);
 			pushContent[i] = newValue;
+		}
+
+		if (!callValidators(oMeta, changes)) {
+			return initialLength;
 		}
 
 		const pushResult = Reflect.apply(target.push, target, pushContent);
 
-		const changes = [];
-		for (let i = initialLength, j = target.length; i < j; i++) {
-			changes[i - initialLength] = new Change(INSERT, [i], target[i], undefined, this);
-		}
 		callObservers(oMeta, changes);
 
 		return pushResult;
@@ -270,21 +277,23 @@ const
 		const
 			oMeta = this[oMetaKey],
 			target = oMeta.target;
-		let shiftResult, i, l, item, tmpObserved;
+		let i, l, item, tmpObserved;
 
-		//	validate before performing the operation
-		const change = new Change(DELETE, [0], undefined, target[0], this);
-		if (!callValidators(oMeta, change)) {
-			return undefined;
-		}
-
-		shiftResult = target.shift();
+		let shiftResult = target[0];
 		if (shiftResult && typeof shiftResult === 'object') {
 			tmpObserved = shiftResult[oMetaKey];
 			if (tmpObserved) {
 				shiftResult = tmpObserved.detach();
 			}
 		}
+
+		//	validate before performing the operation
+		const changes = [new Change(DELETE, [0], undefined, shiftResult, this)];
+		if (!callValidators(oMeta, changes)) {
+			return undefined;
+		}
+
+		target.shift();
 
 		//	update indices of the remaining items
 		for (i = 0, l = target.length; i < l; i++) {
@@ -297,7 +306,6 @@ const
 			}
 		}
 
-		const changes = [new Change(DELETE, [0], undefined, shiftResult, this)];
 		callObservers(oMeta, changes);
 
 		return shiftResult;
@@ -310,19 +318,24 @@ const
 			unshiftContent = new Array(al),
 			initialLength = target.length;
 
-		//	validate all changes before performing the operation
 		for (let i = 0; i < al; i++) {
-			const newValue = getObservedOf(arguments[i], i, oMeta);
-			const change = new Change(INSERT, [i], newValue, undefined, this);
-			if (!callValidators(oMeta, change)) {
-				return initialLength;
-			}
-			unshiftContent[i] = newValue;
+			unshiftContent[i] = getObservedOf(arguments[i], i, oMeta);
+		}
+
+		//	validate all changes before performing the operation
+		const changes = new Array(al);
+		for (let i = 0; i < al; i++) {
+			changes[i] = new Change(INSERT, [i], unshiftContent[i], undefined, this);
+		}
+
+		if (!callValidators(oMeta, changes)) {
+			return initialLength;
 		}
 
 		const unshiftResult = Reflect.apply(target.unshift, target, unshiftContent);
 
-		for (let i = 0, l = target.length, item; i < l; i++) {
+		//	update indices of the previously existing items
+		for (let i = al, l = target.length, item; i < l; i++) {
 			item = target[i];
 			if (item && typeof item === 'object') {
 				const tmpObserved = item[oMetaKey];
@@ -332,12 +345,6 @@ const
 			}
 		}
 
-		//	publish changes
-		const l = unshiftContent.length;
-		const changes = new Array(l);
-		for (let i = 0; i < l; i++) {
-			changes[i] = new Change(INSERT, [i], target[i], undefined, this);
-		}
 		callObservers(oMeta, changes);
 
 		return unshiftResult;
@@ -349,8 +356,8 @@ const
 		let i, l, item;
 
 		//	validate before performing the operation
-		const change = new Change(REVERSE, [], undefined, undefined, this);
-		if (!callValidators(oMeta, change)) {
+		const changes = [new Change(REVERSE, [], undefined, undefined, this)];
+		if (!callValidators(oMeta, changes)) {
 			return this;
 		}
 
@@ -365,7 +372,6 @@ const
 			}
 		}
 
-		const changes = [new Change(REVERSE, [], undefined, undefined, this)];
 		callObservers(oMeta, changes);
 
 		return this;
@@ -377,8 +383,8 @@ const
 		let i, l, item;
 
 		//	validate before performing the operation
-		const change = new Change(SHUFFLE, [], undefined, undefined, this);
-		if (!callValidators(oMeta, change)) {
+		const changes = [new Change(SHUFFLE, [], undefined, undefined, this)];
+		if (!callValidators(oMeta, changes)) {
 			return this;
 		}
 
@@ -393,7 +399,6 @@ const
 			}
 		}
 
-		const changes = [new Change(SHUFFLE, [], undefined, undefined, this)];
 		callObservers(oMeta, changes);
 
 		return this;
@@ -409,35 +414,35 @@ const
 		end = end === undefined ? tarLen : (end < 0 ? Math.max(tarLen + end, 0) : Math.min(end, tarLen));
 
 		if (start < tarLen && end > start) {
+
 			//	validate all changes before performing the operation
 			for (let i = start; i < end; i++) {
-				const newValue = getObservedOf(filVal, i, oMeta);
-				const changeType = i in prev ? UPDATE : INSERT;
-				const change = new Change(changeType, [i], newValue, prev[i], this);
-				if (!callValidators(oMeta, change)) {
-					return this;
+				const oldValue = prev[i];
+				if (typeof filVal !== 'object' && filVal === oldValue) {
+					continue;
 				}
+				const changeType = i in prev ? UPDATE : INSERT;
+				changes.push(new Change(changeType, [i], filVal, oldValue, this));
+			}
+			
+			let tmpObserved;
+			for (let i = start; i < end; i++) {
+				const oldValue = prev[i];
+				if (oldValue && typeof oldValue === 'object') {
+					tmpObserved = oldValue[oMetaKey];
+					if (tmpObserved) {
+						tmpObserved.detach();
+					}
+				}
+			}
+			
+			if (!callValidators(oMeta, changes)) {
+				return this;
 			}
 
 			target.fill(filVal, start, end);
-
-			let tmpObserved;
-			for (let i = start, item, tmpTarget; i < end; i++) {
-				item = target[i];
-				target[i] = getObservedOf(item, i, oMeta);
-				if (i in prev) {
-					tmpTarget = prev[i];
-					if (tmpTarget && typeof tmpTarget === 'object') {
-						tmpObserved = tmpTarget[oMetaKey];
-						if (tmpObserved) {
-							tmpTarget = tmpObserved.detach();
-						}
-					}
-
-					changes.push(new Change(UPDATE, [i], target[i], tmpTarget, this));
-				} else {
-					changes.push(new Change(INSERT, [i], target[i], undefined, this));
-				}
+			for (let i = start; i < end; i++) {
+				target[i] = getObservedOf(target[i], i, oMeta);
 			}
 
 			callObservers(oMeta, changes);
@@ -449,29 +454,29 @@ const
 		const
 			oMeta = this[oMetaKey],
 			target = oMeta.target,
-			tarLen = target.length;
+			tarLen = target.length,
+			prev = target.slice(0);
 		dest = dest < 0 ? Math.max(tarLen + dest, 0) : dest;
 		start = start === undefined ? 0 : (start < 0 ? Math.max(tarLen + start, 0) : Math.min(start, tarLen));
 		end = end === undefined ? tarLen : (end < 0 ? Math.max(tarLen + end, 0) : Math.min(end, tarLen));
 		const len = Math.min(end - start, tarLen - dest);
 
 		if (dest < tarLen && dest !== start && len > 0) {
-			const prev = target.slice(0);
 
 			//	validate all changes before performing the operation
+			const changes = [];
 			for (let i = dest, j = start; i < dest + len; i++, j++) {
-				const newValue = getObservedOf(target[j], i, oMeta);
+				const newValue = target[j];
 				const oldValue = prev[i];
 				if (typeof newValue !== 'object' && newValue === oldValue) {
 					continue;
 				}
-				const change = new Change(UPDATE, [i], newValue, oldValue, this);
-				if (!callValidators(oMeta, change)) {
-					return this;
-				}
+				const changeType = i in prev ? UPDATE : INSERT;
+				changes.push(new Change(changeType, [i], newValue, oldValue, this));
 			}
-
-			const changes = [];
+			if (!callValidators(oMeta, changes)) {
+				return this;
+			}
 
 			target.copyWithin(dest, start, end);
 
@@ -495,7 +500,6 @@ const
 				if (typeof nItem !== 'object' && nItem === oItem) {
 					continue;
 				}
-				changes.push(new Change(UPDATE, [i], nItem, oItem, this));
 			}
 
 			callObservers(oMeta, changes);
@@ -518,32 +522,34 @@ const
 			inserted = Math.max(splLen - 2, 0);
 
 		//	validate all changes before performing the operation
-		const validationChanges = [];
-		for (let index = 0; index < removed; index++) {
-			if (index < inserted) {
-				const newValue = getObservedOf(arguments[index + 2], startIndex + index, oMeta);
-				validationChanges.push(new Change(UPDATE, [startIndex + index], newValue, target[startIndex + index], this));
+		const
+			newValues = new Array(inserted),
+			changes = [];
+		for (let i = 0; i < inserted; i++) {
+			newValues[i] = getObservedOf(arguments[i + 2], startIndex + i, oMeta);
+		}
+		for (let i = 0; i < removed; i++) {
+			let oldValue = target[startIndex + i];
+			if (oldValue && typeof oldValue === 'object') {
+				const tmpObserved = oldValue[oMetaKey];
+				if (tmpObserved) {
+					oldValue = tmpObserved.detach();
+				}
+			}
+			if (i < inserted) {
+				changes.push(new Change(UPDATE, [startIndex + i], newValues[i], oldValue, this));
 			} else {
-				validationChanges.push(new Change(DELETE, [startIndex + index], undefined, target[startIndex + index], this));
+				changes.push(new Change(DELETE, [startIndex + i], undefined, oldValue, this));
 			}
 		}
-		for (let index = removed; index < inserted; index++) {
-			const newValue = getObservedOf(arguments[index + 2], startIndex + index, oMeta);
-			validationChanges.push(new Change(INSERT, [startIndex + index], newValue, undefined, this));
+		for (let i = removed; i < inserted; i++) {
+			changes.push(new Change(INSERT, [startIndex + i], newValues[i], undefined, this));
+		}
+		if (!callValidators(oMeta, changes)) {
+			return [];
 		}
 
-		for (const change of validationChanges) {
-			if (!callValidators(oMeta, change)) {
-				return [];
-			}
-		}
-
-		//	observify the newcomers
-		for (let i = 0; i < splLen; i++) {
-			spliceContent[i] = getObservedOf(arguments[i], i, oMeta);
-		}
-
-		const spliceResult = Reflect.apply(target.splice, target, spliceContent);
+		const spliceResult = Reflect.apply(target.splice, target, [startIndex, removed, ...newValues]);
 		const newTarLen = target.length;
 
 		//	reindex the paths
@@ -558,30 +564,6 @@ const
 			}
 		}
 
-		//	detach removed objects
-		let i, l, item;
-		for (i = 0, l = spliceResult.length; i < l; i++) {
-			item = spliceResult[i];
-			if (item && typeof item === 'object') {
-				tmpObserved = item[oMetaKey];
-				if (tmpObserved) {
-					spliceResult[i] = tmpObserved.detach();
-				}
-			}
-		}
-
-		const changes = [];
-		let index;
-		for (index = 0; index < removed; index++) {
-			if (index < inserted) {
-				changes.push(new Change(UPDATE, [startIndex + index], target[startIndex + index], spliceResult[index], this));
-			} else {
-				changes.push(new Change(DELETE, [startIndex + index], undefined, spliceResult[index], this));
-			}
-		}
-		for (; index < inserted; index++) {
-			changes.push(new Change(INSERT, [startIndex + index], target[startIndex + index], undefined, this));
-		}
 		callObservers(oMeta, changes);
 
 		return spliceResult;
@@ -595,11 +577,13 @@ const
 		offset = offset || 0;
 
 		//	validate all changes before performing the operation
+		const validationChanges = [];
 		for (let i = offset; i < (souLen + offset); i++) {
 			const change = new Change(UPDATE, [i], source[i - offset], prev[i], this);
-			if (!callValidators(oMeta, change)) {
-				return;
-			}
+			validationChanges.push(change);
+		}
+		if (!callValidators(oMeta, validationChanges)) {
+			return;
 		}
 
 		target.set(source, offset);
@@ -689,23 +673,22 @@ class OMetaBase {
 		if (value !== oldValue) {
 			const newValue = getObservedOf(value, key, this);
 
-			//	validate the change before applying
-			const changeType = oldValue === undefined ? INSERT : UPDATE;
-			const change = new Change(changeType, [key], newValue, oldValue, this.proxy);
-			if (!callValidators(this, change)) {
-				return false;
-			}
-
-			target[key] = newValue;
-
 			if (oldValue && typeof oldValue === 'object') {
 				const tmpObserved = oldValue[oMetaKey];
 				if (tmpObserved) {
 					oldValue = tmpObserved.detach();
 				}
 			}
-
+			//	validate the change before applying
+			const changeType = oldValue === undefined ? INSERT : UPDATE;
 			const changes = [new Change(changeType, [key], newValue, oldValue, this.proxy)];
+			if (!callValidators(this, changes)) {
+				return false;
+			}
+
+			target[key] = newValue;
+
+
 			callObservers(this, changes);
 		}
 
@@ -715,22 +698,21 @@ class OMetaBase {
 	deleteProperty(target, key) {
 		let oldValue = target[key];
 
-		//	validate the change before applying
-		const change = new Change(DELETE, [key], undefined, oldValue, this.proxy);
-		if (!callValidators(this, change)) {
-			return false;
-		}
-
-		delete target[key];
-
 		if (oldValue && typeof oldValue === 'object') {
 			const tmpObserved = oldValue[oMetaKey];
 			if (tmpObserved) {
 				oldValue = tmpObserved.detach();
 			}
 		}
-
+		//	validate the change before applying
 		const changes = [new Change(DELETE, [key], undefined, oldValue, this.proxy)];
+		if (!callValidators(this, changes)) {
+			return false;
+		}
+
+		delete target[key];
+
+
 		callObservers(this, changes);
 
 		return true;

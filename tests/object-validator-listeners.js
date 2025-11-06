@@ -6,14 +6,14 @@ test('validator - multiple validators', () => {
 	const obj = { value: 10 };
 	const observable = Observable.from(obj);
 
-	const validator1 = change => {
-		if (change.value < 0) {
+	const validator1 = changes => {
+		if (changes[0].value < 0) {
 			return false;
 		}
 	};
 
-	const validator2 = change => {
-		if (change.value > 100) {
+	const validator2 = changes => {
+		if (changes[0].value > 100) {
 			return false;
 		}
 	};
@@ -68,8 +68,8 @@ test('validator - observers still fire after validation passes', () => {
 	const observable = Observable.from(obj);
 
 	const observedChanges = [];
-	const validator = change => {
-		if (change.value < 0) {
+	const validator = changes => {
+		if (changes[0].value < 0) {
 			return false;
 		}
 		return true;

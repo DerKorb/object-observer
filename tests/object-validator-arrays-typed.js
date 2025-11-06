@@ -6,9 +6,11 @@ test('validator - typed array set - reject', () => {
 	const ta = new Int8Array([1, 2, 3, 4]);
 	const observable = Observable.from(ta);
 
-	const validator = change => {
-		if (change.value === 99) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.value === 99) {
+				return false;
+			}
 		}
 	};
 
@@ -53,9 +55,11 @@ test('validator - typed array fill', () => {
 	const ta = new Int8Array([1, 2, 3]);
 	const observable = Observable.from(ta);
 
-	const validator = change => {
-		if (change.value === 0) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.value === 0) {
+				return false;
+			}
 		}
 	};
 
@@ -70,9 +74,11 @@ test('validator - typed array copyWithin', () => {
 	const ta = new Int8Array([1, 2, 3, 4, 5]);
 	const observable = Observable.from(ta);
 
-	const validator = change => {
-		if (change.value === 4) {
-			return false;
+	const validator = changes => {
+		for (const change of changes) {
+			if (change.value === 4) {
+				return false;
+			}
 		}
 	};
 

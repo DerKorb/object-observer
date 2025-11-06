@@ -52,7 +52,7 @@ test('validator - unvalidate one of two', () => {
 	const obj = { value: 10 };
 	const observable = Observable.from(obj);
 	const validator1 = () => false;
-	const validator2 = change => change.value < 100;
+	const validator2 = changes => changes[0].value < 100;
 	Observable.validate(observable, validator1);
 	Observable.validate(observable, validator2);
 

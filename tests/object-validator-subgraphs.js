@@ -37,8 +37,8 @@ test('validator - moving sub-graph - reject', () => {
 test('validator - Object.assign on observable with subgraph - reject', () => {
 	const observable = Observable.from({ b: { b1: 'x', b2: 'y' } });
 	const newData = { b: { b1: 'z' } };
-	const validator = change => {
-		if (change.path[0] === 'b') {
+	const validator = changes => {
+		if (changes[0].path[0] === 'b') {
 			return false;
 		}
 	};

@@ -80,7 +80,7 @@ export interface ObserverOptions {
 }
 
 export interface Validator {
-	(change: Change): boolean | void;
+	(changes: Change[]): boolean | void;
 }
 
 export interface ValidatorOptions {

@@ -6,9 +6,11 @@ test('validator - nested observable propagation', () => {
 	const obj = { nested: { value: 10 } };
 	const observable = Observable.from(obj);
 
-	const changes = [];
-	const validator = change => {
-		changes.push({ path: change.path.join('.'), value: change.value });
+	const validatorChanges = [];
+	const validator = changes => {
+		for (const change of changes) {
+			validatorChanges.push({ path: change.path.join('.'), value: change.value });
+		}
 		return true;
 	};
 
@@ -18,9 +20,9 @@ test('validator - nested observable propagation', () => {
 	observable.nested.value = 20;
 
 	// Validator should see the change with the full path
-	assert.equal(changes.length, 1);
-	assert.equal(changes[0].path, 'nested.value');
-	assert.equal(changes[0].value, 20);
+	assert.equal(validatorChanges.length, 1);
+	assert.equal(validatorChanges[0].path, 'nested.value');
+	assert.equal(validatorChanges[0].value, 20);
 });
 
 test('validator - deep nested objects', () => {
@@ -45,8 +47,8 @@ test('validator - detached sub-graph is not validated by parent', () => {
 	const oo = Observable.from({ inner: { prop: 'A' } });
 	const inner = oo.inner;
 
-	Observable.validate(oo, c => {
-		if (c.path.join('.') === 'inner.prop') {
+	Observable.validate(oo, changes => {
+		if (changes[0].path.join('.') === 'inner.prop') {
 			return false;
 		}
 		return true;
