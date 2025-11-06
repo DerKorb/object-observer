@@ -386,6 +386,14 @@ test('array fill - primitives', () => {
 	assert.strictEqual(events.length, 2);
 	assert.deepStrictEqual(events[0], { type: 'delete', path: ['1'], value: undefined, oldValue: 'b', object: pa });
 	assert.deepStrictEqual(events[1], { type: 'insert', path: [1], value: 'd', oldValue: undefined, object: pa });
+	events.splice(0);
+
+	// fill with undefined
+	pa.fill(undefined);
+	assert.strictEqual(events.length, 2);
+	assert.deepStrictEqual(events[0], { type: 'delete', path: [0], value: undefined, oldValue: 'a', object: pa });
+	assert.deepStrictEqual(events[1], { type: 'delete', path: [2], value: undefined, oldValue: 'd', object: pa });
+	events.splice(0);
 });
 
 test('array fill - objects', () => {
