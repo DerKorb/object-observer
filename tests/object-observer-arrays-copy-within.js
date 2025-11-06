@@ -42,8 +42,27 @@ test('array copyWithin - primitives', () => {
 	assert.deepStrictEqual(events[0], { type: 'update', path: [1], value: 1, oldValue: 2, object: pa });
 	assert.deepStrictEqual(events[1], { type: 'update', path: [2], value: 2, oldValue: 1, object: pa });
 	//	update at index 4 should not be evented, since 1 === 1
+
+	// pa = [1,1,2,1,2,1]
+	//	simulating insertion of a new item into array (copyWithin does not extend an array, so we may do it only on internal items)
+	delete pa[1]; // pa = [1,empty,2,1,2,1]
 	events.splice(0);
 	callbacks = 0;
+	pa.copyWithin(0, 4);
+	assert.strictEqual(events.length, 2);
+	assert.strictEqual(callbacks, 1);
+	assert.deepStrictEqual(events[0], { type: 'update', path: [0], value: 2, oldValue: 1, object: pa });
+	assert.deepStrictEqual(events[1], { type: 'insert', path: [1], value: 1, oldValue: undefined, object: pa });
+
+	// pa = [2,1,2,1,2,1]
+	delete pa[1]; // pa = [2,empty,2,1,2,1]
+	events.splice(0);
+	callbacks = 0;
+	pa.copyWithin(0,1,2);
+	assert.strictEqual(events.length, 1);
+	assert.strictEqual(callbacks, 1);
+	assert.deepStrictEqual(events[0], { type: 'delete', path: [0], value: undefined, oldValue: 2, object: pa });
+
 });
 
 test('array copyWithin - objects', () => {

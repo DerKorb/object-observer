@@ -356,7 +356,7 @@ test('array fill - primitives', () => {
 		[].push.apply(events, eventsList);
 	});
 
-	const filled = pa.fill('a');
+	const filled = pa.fill('a'); // pa = [a,a,a]
 	assert.strictEqual(filled, pa);
 	assert.strictEqual(events.length, 3);
 	assert.deepStrictEqual(events[0], { type: 'update', path: [0], value: 'a', oldValue: 1, object: pa });
@@ -364,23 +364,36 @@ test('array fill - primitives', () => {
 	assert.deepStrictEqual(events[2], { type: 'update', path: [2], value: 'a', oldValue: 3, object: pa });
 	events.splice(0);
 
-	pa.fill('b', 1, 3);
+	pa.fill('b', 1, 3); // pa = [a,b,b]
 	assert.strictEqual(events.length, 2);
 	assert.deepStrictEqual(events[0], { type: 'update', path: [1], value: 'b', oldValue: 'a', object: pa });
 	assert.deepStrictEqual(events[1], { type: 'update', path: [2], value: 'b', oldValue: 'a', object: pa });
 	events.splice(0);
 
-	pa.fill('c', -1, 3);
+	pa.fill('c', -1, 3); // pa = [a,b,c]
 	assert.strictEqual(events.length, 1);
 	assert.deepStrictEqual(events[0], { type: 'update', path: [2], value: 'c', oldValue: 'b', object: pa });
 	events.splice(0);
 
+	pa.fill('b', 1); // pa = [a,b,b]
+	assert.strictEqual(events.length, 1); // only position 2 should be an update, no update from unchanged values
+	assert.deepStrictEqual(events[0], { type: 'update', path: [2], value: 'b', oldValue: 'c', object: pa });
+	events.splice(0);
+
 	//	simulating insertion of a new item into array (fill does not extend an array, so we may do it only on internal items)
 	delete pa[1];
-	pa.fill('d', 1, 2);
+	pa.fill('d', 1, 2); // pa = [a,empty,d]
 	assert.strictEqual(events.length, 2);
 	assert.deepStrictEqual(events[0], { type: 'delete', path: ['1'], value: undefined, oldValue: 'b', object: pa });
 	assert.deepStrictEqual(events[1], { type: 'insert', path: [1], value: 'd', oldValue: undefined, object: pa });
+	events.splice(0);
+
+	// fill with undefined
+	pa.fill(undefined);
+	assert.strictEqual(events.length, 2);
+	assert.deepStrictEqual(events[0], { type: 'delete', path: [0], value: undefined, oldValue: 'a', object: pa });
+	assert.deepStrictEqual(events[1], { type: 'delete', path: [2], value: undefined, oldValue: 'd', object: pa });
+	events.splice(0);
 });
 
 test('array fill - objects', () => {
