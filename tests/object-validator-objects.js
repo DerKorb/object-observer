@@ -99,24 +99,24 @@ test('validator - property delete', () => {
 	assert.isFalse('deletable' in observable);
 });
 
-// test('validator - Object.assign with multiple properties - reject', () => {
-// 	const observable = Observable.from({ a: 1 });
-// 	const validator = change => {
-// 		if (change.path[0] === 'b') {
-// 			return false;
-// 		}
-// 	};
-// 	Observable.validate(observable, validator);
+test('validator - Object.assign with multiple properties - reject', () => {
+	const observable = Observable.from({ a: 1 });
+	const validator = change => {
+		if (change.path[0] === 'b') {
+			return false;
+		}
+	};
+	Observable.validate(observable, validator);
 
-// 	const newData = { a: 2, b: 3, c: 4 };
+	const newData = { a: 2, b: 3, c: 4 };
 
-// 	assert.throws(() => Object.assign(observable, newData), TypeError);
+	assert.throws(() => Object.assign(observable, newData), TypeError);
 
-// 	// a should be unchanged because the transaction was rejected
-// 	assert.equal(observable.a, 1);
-// 	assert.isFalse('b' in observable);
-// 	assert.isFalse('c' in observable);
-// });
+	// change on 'a' successful, then throw on 'b'
+	assert.deepEqual(observable, { a: 2 });
+	assert.isFalse('b' in observable);
+	assert.isFalse('c' in observable);
+});
 
 test('validator - property delete - return value', () => {
 	const
